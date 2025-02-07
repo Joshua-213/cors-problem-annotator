@@ -452,42 +452,33 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         const q = query(versionsRef, orderBy("version", "desc"));
         const snapshot = await getDocs(q);
 
-        // Check if version 1 already exists before creating it
-        const hasVersion1 = snapshot.docs.some(
-          (doc) => doc.data().version === 1
+        const versionsWithCORS = await Promise.all(
+          snapshot.docs.map(async (doc) => {
+            const data = doc.data();
+            try {
+              const storageRef = ref(storage, data.url);
+              const downloadURL = await getDownloadURL(storageRef);
+              return {
+                id: doc.id,
+                ...data,
+                url: `${downloadURL}?alt=media`,
+                accessible: true,
+              };
+            } catch (error) {
+              console.warn(`Error accessing file ${data.url}:`, error);
+              return {
+                id: doc.id,
+                ...data,
+                url: null,
+                accessible: false,
+              };
+            }
+          })
         );
 
-        // Only create version 1 if no versions exist at all
-        if (snapshot.empty && !hasVersion1) {
-          const docRef = doc(db, "documents", docId);
-          const docSnap = await getDoc(docRef);
-          const docData = docSnap.data();
-
-          if (docData) {
-            await addDoc(versionsRef, {
-              version: 1,
-              url: docData.url,
-              uploadedAt: docData.dateModified || serverTimestamp(),
-              metadata: {
-                originalFilename: docData.name,
-                contentType: docData.type,
-                size: 0, // Original size might not be available
-              },
-            });
-
-            // Fetch versions again after creating version 1
-            const updatedSnapshot = await getDocs(q);
-            return updatedSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as DocumentVersion[];
-          }
-        }
-
-        return snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as DocumentVersion[];
+        return versionsWithCORS as (DocumentVersion & {
+          accessible: boolean;
+        })[];
       } catch (error) {
         console.error("Error fetching versions:", error);
         return [];
@@ -496,12 +487,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
     updateFile: async (folderId: string, docId: string, file: File) => {
       try {
-        // Create storage reference
         const storageRef = ref(storage, `documents/${docId}/${file.name}`);
-
-        // Upload file to Firebase Storage
         const uploadResult = await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(uploadResult.ref);
+
+        // Add CORS headers to the download URL
+        const corsEnabledURL = `${downloadURL}?alt=media`;
 
         // Get current document data
         const docRef = doc(db, "documents", docId);
@@ -512,7 +503,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         const versionsRef = collection(db, `documents/${docId}/versions`);
         await addDoc(versionsRef, {
           version: currentVersion + 1,
-          url: downloadURL,
+          url: corsEnabledURL, // Use the CORS-enabled URL
           uploadedAt: serverTimestamp(),
           metadata: {
             originalFilename: file.name,
@@ -523,7 +514,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
         // Update main document
         await updateDoc(docRef, {
-          url: downloadURL,
+          url: corsEnabledURL, // Use the CORS-enabled URL
           version: currentVersion + 1,
           dateModified: serverTimestamp(),
           name: file.name,
@@ -738,16 +729,23 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                             </p>
                           </div>
                         </div>
-                        <a
-                          href={version.url}
-                          download
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-4 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors flex items-center space-x-1"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span>Download</span>
-                        </a>
+                        {version.accessible ? (
+                          <a
+                            href={version.url}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-4 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors flex items-center space-x-1"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>Download</span>
+                          </a>
+                        ) : (
+                          <div className="ml-4 px-3 py-1.5 text-sm text-gray-500 flex items-center space-x-1">
+                            <AlertCircle className="w-4 h-4" />
+                            <span>Unavailable</span>
+                          </div>
+                        )}
                       </motion.div>
                     ))
                   )}
