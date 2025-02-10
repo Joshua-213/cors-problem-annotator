@@ -3,24 +3,29 @@ export type Point = {
   y: number;
 };
 
-export type AnnotationType = 
-  | 'freehand' 
-  | 'rectangle' 
-  | 'circle' 
-  | 'line'
-  | 'arrow' 
-  | 'doubleArrow'
-  | 'tick'
-  | 'cross'
-  | 'text'
-  | 'stickyNote'
-  | 'highlight';
+export type AnnotationType =
+  | "select"
+  | "freehand"
+  | "line"
+  | "arrow"
+  | "doubleArrow"
+  | "rectangle"
+  | "circle"
+  | "triangle"
+  | "star"
+  | "text"
+  | "stickyNote"
+  | "highlight"
+  | "stamp";
+
+export type StampType = "approved" | "rejected" | "draft" | "reviewed";
 
 export type AnnotationStyle = {
   color: string;
   lineWidth: number;
   opacity: number;
-  circleDiameterMode?: boolean;
+  text?: string;
+  stampType?: StampType;
 };
 
 export interface Annotation {
@@ -33,4 +38,27 @@ export interface Annotation {
   timestamp: number;
   userId: string;
   selected?: boolean;
+  version?: number;
 }
+
+export interface ToolConfig {
+  type: AnnotationType;
+  icon: React.ReactNode;
+  label: string;
+  drawMode: "continuous" | "shape" | "single";
+}
+
+export const createAnnotation = (): Annotation => ({
+  id: Date.now().toString(),
+  type: "freehand",
+  points: [],
+  style: {
+    color: "#000000",
+    lineWidth: 2,
+    opacity: 1
+  },
+  pageNumber: 1,
+  timestamp: Date.now(),
+  userId: "current-user",
+  version: 1
+});

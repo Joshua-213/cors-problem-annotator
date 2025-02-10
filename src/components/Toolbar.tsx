@@ -1,51 +1,24 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { ToolbarSection } from "./Toolbar/ToolbarSection";
+import { ToolButton } from "./Toolbar/ToolButton";
+import * as Icons from "lucide-react";
 import {
-  Pencil,
-  MousePointer,
-  Square,
-  Circle,
-  Minus,
-  ArrowUpRight,
-  ArrowRightLeft,
-  Type,
-  Highlighter,
-  Check,
-  X as XIcon,
-  Undo2,
-  Redo2,
-  Download,
-  Upload,
-  StickyNote as StickyNoteIcon,
-} from "lucide-react";
-import { ColorPicker } from "./ColorPicker";
+  COLORS,
+  LINE_WIDTHS,
+  OPACITY_LEVELS,
+  TOOLS,
+  KEYBOARD_SHORTCUTS,
+} from "../constants/toolbar";
 import { useAnnotationStore } from "../store/useAnnotationStore";
-import { AnnotationType } from "../types/annotation";
+import { AnnotationType, StampType } from "../types/annotation";
+import { ShiftKeyIndicator } from "./ShiftKeyIndicator";
+import { SelectionIndicator } from "./SelectionIndicator";
+import { HelpCircle } from "lucide-react";
+import { useKeyboardShortcutGuide } from "../hooks/useKeyboardShortcutGuide";
 
-const tools: { type: AnnotationType; icon: React.ReactNode; label: string }[] =
-  [
-    { type: "select", icon: <MousePointer size={20} />, label: "Select" },
-    { type: "freehand", icon: <Pencil size={20} />, label: "Freehand" },
-    { type: "rectangle", icon: <Square size={20} />, label: "Rectangle" },
-    { type: "circle", icon: <Circle size={20} />, label: "Circle" },
-    { type: "line", icon: <Minus size={20} />, label: "Line" },
-    { type: "arrow", icon: <ArrowUpRight size={20} />, label: "Arrow" },
-    {
-      type: "doubleArrow",
-      icon: <ArrowRightLeft size={20} />,
-      label: "Double Arrow",
-    },
-    { type: "tick", icon: <Check size={20} />, label: "Tick" },
-    { type: "cross", icon: <XIcon size={20} />, label: "Cross" },
-    { type: "text", icon: <Type size={20} />, label: "Text" },
-    {
-      type: "stickyNote",
-      icon: <StickyNoteIcon size={20} />,
-      label: "Sticky Note",
-    },
-    { type: "highlight", icon: <Highlighter size={20} />, label: "Highlight" },
-  ];
+const stampTypes: StampType[] = ["approved", "rejected", "draft", "reviewed"];
 
-export const Toolbar: React.FC = () => {
+export const Toolbar: React.FC<{ documentId: string }> = ({ documentId }) => {
   const {
     currentTool,
     currentStyle,
@@ -53,171 +26,204 @@ export const Toolbar: React.FC = () => {
     setCurrentStyle,
     undo,
     redo,
-    annotations,
+    setCurrentDocument,
+    clearSelection,
   } = useAnnotationStore();
+  const { setIsShortcutGuideOpen } = useKeyboardShortcutGuide();
 
-  const handleExport = () => {
-    const data = JSON.stringify(annotations);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "annotations.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  useEffect(() => {
+    if (documentId) {
+      setCurrentDocument(documentId);
+    }
+  }, [documentId, setCurrentDocument]);
+
+  const handleToolSelect = (tool: AnnotationType) => {
+    setCurrentTool(tool);
+    clearSelection();
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const renderToolButtons = (tools: (typeof TOOLS)[keyof typeof TOOLS]) => (
+    <div className="space-y-1">
+      {tools.map(({ tool, icon, label, shortcut }) => (
+        <ToolButton
+          key={tool}
+          tool={tool as AnnotationType}
+          icon={React.createElement(Icons[icon as keyof typeof Icons], {
+            size: 20,
+          })}
+          label={label}
+          shortcut={shortcut}
+          onClick={() => handleToolSelect(tool as AnnotationType)}
+        />
+      ))}
+    </div>
+  );
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const annotations = JSON.parse(e.target?.result as string);
-        useAnnotationStore.getState().importAnnotations(annotations);
-      } catch (error) {
-        console.error("Failed to import annotations:", error);
-      }
-    };
-    reader.readAsText(file);
-  };
+  const renderStampOptions = () => (
+    <div className="flex flex-col gap-2 p-2">
+      {stampTypes.map((type) => (
+        <button
+          key={type}
+          onClick={() => {
+            setCurrentTool("stamp");
+            setCurrentStyle({ stampType: type });
+          }}
+          className={`flex items-center justify-center px-3 py-2 text-sm rounded ${
+            currentTool === "stamp" && currentStyle.stampType === type
+              ? "bg-blue-100"
+              : "hover:bg-gray-100"
+          }`}
+        >
+          <span className="text-red-600 font-bold">{type.toUpperCase()}</span>
+        </button>
+      ))}
+    </div>
+  );
 
-  return (
-    <div className="flex flex-col gap-4 p-4 bg-white border-r">
-      <div className="space-y-2">
-        {tools.map(({ type, icon, label }) => (
-          <button
-            key={type}
-            onClick={() => setCurrentTool(type)}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded ${
-              currentTool === type
-                ? "bg-blue-100 text-blue-600"
-                : "hover:bg-gray-100"
-            }`}
-            title={label}
-          >
-            {icon}
-            <span className="text-sm">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="border-t pt-4">
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium text-gray-700">Color</label>
-          <ColorPicker
-            color={currentStyle.color}
-            onChange={(color) => setCurrentStyle({ color })}
-          />
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {["#FF0000", "#00FF00", "#0000FF", "#000000"].map((color) => (
+  const renderStyleSection = () => (
+    <div className="space-y-4 p-2">
+      {/* Color Picker */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Color
+        </label>
+        <div className="grid grid-cols-8 gap-1.5">
+          {COLORS.map((color) => (
             <button
               key={color}
               onClick={() => setCurrentStyle({ color })}
-              className="flex items-center justify-center"
-              title={color}
+              className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${
+                currentStyle.color === color
+                  ? "border-blue-500 ring-2 ring-blue-200"
+                  : "border-transparent"
+              }`}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Line Width */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Line Width
+        </label>
+        <div className="flex gap-1.5">
+          {LINE_WIDTHS.map((width) => (
+            <button
+              key={width}
+              onClick={() => setCurrentStyle({ lineWidth: width })}
+              className={`h-8 flex-1 flex items-center justify-center border rounded-md transition-colors ${
+                currentStyle.lineWidth === width
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:bg-gray-50"
+              }`}
             >
               <div
-                className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                  currentStyle.color === color
-                    ? "border-blue-500"
-                    : "border-transparent"
-                }`}
-                style={{ backgroundColor: color }}
+                className="bg-current rounded-full transition-all"
+                style={{
+                  width: Math.max(4, width * 2),
+                  height: Math.max(4, width * 2),
+                }}
               />
             </button>
           ))}
         </div>
       </div>
 
-      <div className="border-t pt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Line Width
-        </label>
-        <input
-          type="range"
-          min="1"
-          max="10"
-          value={currentStyle.lineWidth}
-          onChange={(e) =>
-            setCurrentStyle({ lineWidth: parseInt(e.target.value) })
-          }
-          className="w-full"
-        />
-      </div>
-
-      <div className="border-t pt-4">
+      {/* Opacity */}
+      <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Opacity
         </label>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={currentStyle.opacity * 100}
-          onChange={(e) =>
-            setCurrentStyle({ opacity: parseInt(e.target.value) / 100 })
-          }
-          className="w-full"
-        />
-      </div>
-
-      {currentTool === "circle" && (
-        <div className="border-t pt-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={currentStyle.circleDiameterMode}
-              onChange={(e) =>
-                setCurrentStyle({ circleDiameterMode: e.target.checked })
-              }
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700">
-              Draw circle by diameter
-            </span>
-          </label>
+        <div className="flex gap-1.5">
+          {OPACITY_LEVELS.map((opacity) => (
+            <button
+              key={opacity}
+              onClick={() => setCurrentStyle({ opacity })}
+              className={`h-8 flex-1 border rounded-md transition-colors ${
+                currentStyle.opacity === opacity
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              <div className="w-full h-full rounded-md" style={{ opacity }} />
+            </button>
+          ))}
         </div>
-      )}
-
-      <div className="border-t pt-4 space-y-2">
-        <button
-          onClick={undo}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100"
-        >
-          <Undo2 size={20} />
-          <span className="text-sm">Undo</span>
-        </button>
-        <button
-          onClick={redo}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100"
-        >
-          <Redo2 size={20} />
-          <span className="text-sm">Redo</span>
-        </button>
-      </div>
-
-      <div className="border-t pt-4 space-y-2">
-        <button
-          onClick={handleExport}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100"
-        >
-          <Download size={20} />
-          <span className="text-sm">Export Annotations</span>
-        </button>
-        <label className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 cursor-pointer">
-          <Upload size={20} />
-          <span className="text-sm">Import Annotations</span>
-          <input
-            type="file"
-            accept=".json"
-            onChange={handleImport}
-            className="hidden"
-          />
-        </label>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      <div className="flex flex-col w-64 bg-white border-r border-gray-200 h-full ">
+        <ToolbarSection title="Basic">
+          {renderToolButtons(TOOLS.basic)}
+        </ToolbarSection>
+
+        <ToolbarSection title="Shapes">
+          {renderToolButtons(TOOLS.shapes)}
+        </ToolbarSection>
+
+        <ToolbarSection title="Lines">
+          {renderToolButtons(TOOLS.lines)}
+        </ToolbarSection>
+
+        <ToolbarSection title="Stamps" defaultExpanded>
+          {renderStampOptions()}
+        </ToolbarSection>
+
+        <ToolbarSection title="Text & Notes">
+          {renderToolButtons(TOOLS.text)}
+        </ToolbarSection>
+
+        <ToolbarSection title="Style">{renderStyleSection()}</ToolbarSection>
+
+        <div className="mt-auto border-t border-gray-200 p-2 space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={undo}
+              className="flex-1 flex items-center justify-between gap-1 p-2 rounded hover:bg-gray-50"
+              title={`Undo (${KEYBOARD_SHORTCUTS.actions.undo})`}
+            >
+              <div className="flex items-center gap-1">
+                <Icons.Undo2 size={16} />
+                <span className="text-sm">Undo</span>
+              </div>
+              <span className="text-xs text-gray-400">
+                {KEYBOARD_SHORTCUTS.actions.undo}
+              </span>
+            </button>
+            <button
+              onClick={redo}
+              className="flex-1 flex items-center justify-between gap-1 p-2 rounded hover:bg-gray-50"
+              title={`Redo (${KEYBOARD_SHORTCUTS.actions.redo})`}
+            >
+              <div className="flex items-center gap-1">
+                <Icons.Redo2 size={16} />
+                <span className="text-sm">Redo</span>
+              </div>
+              <span className="text-xs text-gray-400">
+                {KEYBOARD_SHORTCUTS.actions.redo}
+              </span>
+            </button>
+          </div>
+          <button
+            onClick={() => setIsShortcutGuideOpen(true)}
+            className="w-full flex items-center justify-between gap-1 p-2 rounded hover:bg-gray-50 text-gray-600 hover:text-gray-700"
+            title="Show keyboard shortcuts (?)"
+          >
+            <div className="flex items-center gap-1">
+              <HelpCircle size={16} />
+              <span className="text-sm">Keyboard Shortcuts</span>
+            </div>
+            <span className="text-xs text-gray-400">?</span>
+          </button>
+        </div>
+      </div>
+      <ShiftKeyIndicator />
+      <SelectionIndicator />
+    </>
   );
 };
