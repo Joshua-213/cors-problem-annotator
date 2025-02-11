@@ -52,29 +52,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
   const { isShortcutGuideOpen, setIsShortcutGuideOpen } =
     useKeyboardShortcutGuide();
 
-  // Add this function to calculate the scale that fits the screen
-  const calculateFitToScreenScale = (viewport: any) => {
-    if (!containerRef.current) return 1.0;
-
-    const containerWidth = containerRef.current.clientWidth - 32; // subtract padding
-    const containerHeight = containerRef.current.clientHeight - 100; // subtract controls height and padding
-
-    const horizontalScale = containerWidth / viewport.width;
-    const verticalScale = containerHeight / viewport.height;
-
-    // Use the smaller scale to ensure the PDF fits both width and height
-    return Math.min(horizontalScale, verticalScale, 1.0); // Cap at 1.0 to prevent enlargement
-  };
-
   // Modify the useEffect that handles PDF page rendering to include auto-scaling
   useEffect(() => {
     if (!page || !canvasRef.current) return;
 
-    const viewport = page.getViewport({ scale: 1.0 }); // Get viewport at scale 1.0
-    const initialScale = calculateFitToScreenScale(viewport);
-    setScale(initialScale); // Set initial scale
-
-    const scaledViewport = page.getViewport({ scale: initialScale });
+    // Use the default scale of 1.0 (100%)
+    const scaledViewport = page.getViewport({ scale: 1.0 });
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
     if (!context) return;
@@ -99,16 +82,27 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
         setContainerWidth(containerRef.current.clientWidth);
         setContainerHeight(containerRef.current.clientHeight);
 
-        const viewport = page.getViewport({ scale: 1.0 });
-        const newScale = calculateFitToScreenScale(viewport);
-        setScale(newScale);
+        // Just update the container dimensions without changing the scale
+        const viewport = page.getViewport({ scale });
+        canvasRef.current!.width = viewport.width;
+        canvasRef.current!.height = viewport.height;
+
+        // Re-render the page with the current scale
+        page
+          .render({
+            canvasContext: canvasRef.current!.getContext("2d")!,
+            viewport,
+          })
+          .promise.catch((error) => {
+            console.error("Error re-rendering PDF page:", error);
+          });
       }
     };
 
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
-  }, [page]);
+  }, [page, scale]);
 
   // Add keyboard shortcuts with documentId and current page
   useKeyboardShortcuts(documentId, currentPage);
