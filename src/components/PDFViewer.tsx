@@ -17,6 +17,8 @@ import { drawAnnotation } from "./canvas/drawingUtils";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useToast } from "../contexts/ToastContext";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { KeyboardShortcutGuide } from "./KeyboardShortcutGuide";
+import { useKeyboardShortcutGuide } from "../hooks/useKeyboardShortcutGuide";
 
 interface PDFViewerProps {
   file: File | string;
@@ -47,16 +49,19 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
 
   const store = useAnnotationStore();
 
+  const { isShortcutGuideOpen, setIsShortcutGuideOpen } =
+    useKeyboardShortcutGuide();
+
   // Add this function to calculate the scale that fits the screen
   const calculateFitToScreenScale = (viewport: any) => {
     if (!containerRef.current) return 1.0;
-    
+
     const containerWidth = containerRef.current.clientWidth - 32; // subtract padding
     const containerHeight = containerRef.current.clientHeight - 100; // subtract controls height and padding
-    
+
     const horizontalScale = containerWidth / viewport.width;
     const verticalScale = containerHeight / viewport.height;
-    
+
     // Use the smaller scale to ensure the PDF fits both width and height
     return Math.min(horizontalScale, verticalScale, 1.0); // Cap at 1.0 to prevent enlargement
   };
@@ -71,7 +76,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
 
     const scaledViewport = page.getViewport({ scale: initialScale });
     const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext("2d");
     if (!context) return;
 
     canvas.width = scaledViewport.width;
@@ -83,7 +88,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
     };
 
     page.render(renderContext).promise.catch((error) => {
-      console.error('Error rendering PDF page:', error);
+      console.error("Error rendering PDF page:", error);
     });
   }, [page]);
 
@@ -93,7 +98,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
       if (containerRef.current && page) {
         setContainerWidth(containerRef.current.clientWidth);
         setContainerHeight(containerRef.current.clientHeight);
-        
+
         const viewport = page.getViewport({ scale: 1.0 });
         const newScale = calculateFitToScreenScale(viewport);
         setScale(newScale);
@@ -101,8 +106,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
     };
 
     updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    window.addEventListener("resize", updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
   }, [page]);
 
   // Add keyboard shortcuts with documentId and current page
@@ -184,8 +189,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
     }
   };
 
-  const handleZoomIn = () => setScale(prev => Math.min(prev + 0.1, 3));
-  const handleZoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
+  const handleZoomIn = () => setScale((prev) => Math.min(prev + 0.1, 3));
+  const handleZoomOut = () => setScale((prev) => Math.max(prev - 0.1, 0.5));
   const handleZoomReset = () => setScale(1);
   const handleNextPage = () =>
     setCurrentPage((p) => Math.min(p + 1, pdf?.numPages || p));
@@ -245,7 +250,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
     // Load annotations when component mounts
     const savedAnnotations = loadAnnotations(documentId);
     if (savedAnnotations) {
-      store.importAnnotations(documentId, savedAnnotations, 'replace');
+      store.importAnnotations(documentId, savedAnnotations, "replace");
     }
   }, [documentId]);
 
@@ -268,95 +273,120 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({ file, documentId }) => {
   const viewport = page.getViewport({ scale });
 
   return (
-    <div className="flex flex-col h-full" ref={containerRef}>
-      {/* Controls Bar */}
-      <div className="flex items-center justify-between p-2 border-b bg-white">
-        <div className="flex items-center gap-4">
-          {/* Page Controls */}
-          <button
-            onClick={handlePrevPage}
-            className="p-1 rounded hover:bg-gray-100"
-            disabled={currentPage === 1}
-            title="Previous Page"
-          >
-            <ChevronLeft className="text-gray-700" size={20} />
-          </button>
-          <span className="text-sm font-medium text-gray-700">
-            Page {currentPage} of {pdf?.numPages || 0}
-          </span>
-          <button
-            onClick={handleNextPage}
-            className="p-1 rounded hover:bg-gray-100"
-            disabled={currentPage === pdf?.numPages || false}
-            title="Next Page"
-          >
-            <ChevronRight className="text-gray-700" size={20} />
-          </button>
-
-          {/* Divider */}
-          <div className="h-6 w-px bg-gray-200" />
-
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-2">
+    <>
+      <div className="flex flex-col h-full" ref={containerRef}>
+        {/* Controls Bar */}
+        <div className="flex items-center justify-between p-2 border-b bg-white">
+          <div className="flex items-center gap-4">
+            {/* Page Controls */}
             <button
-              onClick={handleZoomOut}
+              onClick={handlePrevPage}
               className="p-1 rounded hover:bg-gray-100"
-              title="Zoom Out"
+              disabled={currentPage === 1}
+              title="Previous Page"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-              </svg>
+              <ChevronLeft className="text-gray-700" size={20} />
             </button>
-            <span className="text-sm font-medium w-16 text-center">{Math.round(scale * 100)}%</span>
+            <span className="text-sm font-medium text-gray-700">
+              Page {currentPage} of {pdf?.numPages || 0}
+            </span>
             <button
-              onClick={handleZoomIn}
+              onClick={handleNextPage}
               className="p-1 rounded hover:bg-gray-100"
-              title="Zoom In"
+              disabled={currentPage === pdf?.numPages || false}
+              title="Next Page"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <ChevronRight className="text-gray-700" size={20} />
             </button>
-            <button
-              onClick={handleZoomReset}
-              className="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
-            >
-              Reset
-            </button>
+
+            {/* Divider */}
+            <div className="h-6 w-px bg-gray-200" />
+
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleZoomOut}
+                className="p-1 rounded hover:bg-gray-100"
+                title="Zoom Out"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M20 12H4"
+                  />
+                </svg>
+              </button>
+              <span className="text-sm font-medium w-16 text-center">
+                {Math.round(scale * 100)}%
+              </span>
+              <button
+                onClick={handleZoomIn}
+                className="p-1 rounded hover:bg-gray-100"
+                title="Zoom In"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={handleZoomReset}
+                className="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Reset
+              </button>
+            </div>
           </div>
         </div>
 
-       
-      </div>
-
-      {/* PDF Viewer */}
-      <div className="flex-1 overflow-auto bg-gray-100 p-4">
-        <div 
-          className="relative mx-auto bg-white shadow-lg"
-          style={{ 
-            width: viewport.width,
-            height: viewport.height,
-          }}
-        >
-          {/* Base PDF Canvas */}
-          <canvas
-            ref={canvasRef}
-            className="absolute top-0 left-0"
+        {/* PDF Viewer */}
+        <div className="flex-1 overflow-auto bg-gray-100 p-4">
+          <div
+            className="relative mx-auto bg-white shadow-lg"
             style={{
               width: viewport.width,
               height: viewport.height,
             }}
-          />
-          {/* Annotation Canvas */}
-          <AnnotationCanvas
-            documentId={documentId}
-            pageNumber={currentPage}
-            scale={scale}
-            width={viewport.width}
-            height={viewport.height}
-          />
+          >
+            {/* Base PDF Canvas */}
+            <canvas
+              ref={canvasRef}
+              className="absolute top-0 left-0"
+              style={{
+                width: viewport.width,
+                height: viewport.height,
+              }}
+            />
+            {/* Annotation Canvas */}
+            <AnnotationCanvas
+              documentId={documentId}
+              pageNumber={currentPage}
+              scale={scale}
+              width={viewport.width}
+              height={viewport.height}
+            />
+          </div>
         </div>
       </div>
-    </div>
+      {isShortcutGuideOpen && (
+        <KeyboardShortcutGuide onClose={() => setIsShortcutGuideOpen(false)} />
+      )}
+    </>
   );
 };

@@ -193,12 +193,15 @@ export const drawArrow = (
   ctx: CanvasRenderingContext2D,
   points: Point[],
   scale: number,
-  isDouble: boolean = false
+  isDoubleArrow: boolean = false
 ) => {
   if (!points || points.length < 2) return;
   const [start, end] = points;
 
-  if (!isValidPoint(start) || !isValidPoint(end)) return;
+  ctx.save();
+  ctx.lineWidth = 2 * scale;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
 
   // Draw the main line
   ctx.beginPath();
@@ -206,13 +209,45 @@ export const drawArrow = (
   ctx.lineTo(end.x * scale, end.y * scale);
   ctx.stroke();
 
-  // Draw arrow head at the end
-  drawArrowHead(ctx, start, end, scale);
+  // Calculate arrowhead parameters
+  const angle = Math.atan2(
+    end.y * scale - start.y * scale,
+    end.x * scale - start.x * scale
+  );
+  const arrowLength = 10 * scale;
+  const arrowWidth = 6 * scale;
 
-  // For double arrow, draw arrow head at the start
-  if (isDouble) {
-    drawArrowHead(ctx, end, start, scale, true);
+  // Draw arrowhead at the end
+  ctx.beginPath();
+  ctx.moveTo(end.x * scale, end.y * scale);
+  ctx.lineTo(
+    end.x * scale - arrowLength * Math.cos(angle - Math.PI / 6),
+    end.y * scale - arrowLength * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.lineTo(
+    end.x * scale - arrowLength * Math.cos(angle + Math.PI / 6),
+    end.y * scale - arrowLength * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.closePath();
+  ctx.fill();
+
+  // Draw arrowhead at the start if it's a double arrow
+  if (isDoubleArrow) {
+    ctx.beginPath();
+    ctx.moveTo(start.x * scale, start.y * scale);
+    ctx.lineTo(
+      start.x * scale + arrowLength * Math.cos(angle - Math.PI / 6),
+      start.y * scale + arrowLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      start.x * scale + arrowLength * Math.cos(angle + Math.PI / 6),
+      start.y * scale + arrowLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.closePath();
+    ctx.fill();
   }
+
+  ctx.restore();
 };
 
 // Add tick (checkmark) drawing function
@@ -407,16 +442,73 @@ export const drawHighlight = (
   ctx.restore();
 };
 
-// Temporarily disable freehand tool
-export const drawFreehand = (
+// Add new function for smooth freehand drawing
+export const drawSmoothFreehand = (
   ctx: CanvasRenderingContext2D,
-  points: Point[]
+  points: Point[],
+  scale: number,
+  style: AnnotationStyle
 ) => {
-  // Temporarily disabled
-  return;
+  if (!points || points.length < 2) return;
+
+  ctx.save();
+  ctx.strokeStyle = style.color;
+  ctx.lineWidth = style.lineWidth * scale;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.globalAlpha = style.opacity;
+
+  // Apply scaling to all points first
+  const scaledPoints = points.map((p) => ({
+    x: p.x * scale,
+    y: p.y * scale,
+  }));
+
+  ctx.beginPath();
+  ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+
+  // Use cubic Bezier curves with tension for smooth drawing
+  const tension = 0.5; // Adjust this value (0-1) for different smoothness
+  let previousControlPoint: Point | null = null;
+
+  for (let i = 0; i < scaledPoints.length - 1; i++) {
+    const current = scaledPoints[i];
+    const next = scaledPoints[i + 1];
+    const nextNext = scaledPoints[i + 2] || next;
+
+    // Calculate control points using cardinal spline logic
+    const cp1 = {
+      x: current.x + (next.x - (scaledPoints[i - 1]?.x || current.x)) * tension,
+      y: current.y + (next.y - (scaledPoints[i - 1]?.y || current.y)) * tension,
+    };
+
+    const cp2 = {
+      x: next.x - (nextNext.x - current.x) * tension,
+      y: next.y - (nextNext.y - current.y) * tension,
+    };
+
+    // Smooth connection between segments
+    if (previousControlPoint) {
+      ctx.bezierCurveTo(
+        previousControlPoint.x,
+        previousControlPoint.y,
+        cp1.x,
+        cp1.y,
+        current.x,
+        current.y
+      );
+    }
+
+    ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, next.x, next.y);
+
+    previousControlPoint = cp2;
+  }
+
+  ctx.stroke();
+  ctx.restore();
 };
 
-// Update drawAnnotation to handle line tool properly
+// Update drawAnnotation function
 export const drawAnnotation = (
   ctx: CanvasRenderingContext2D,
   annotation: Annotation,
@@ -432,7 +524,7 @@ export const drawAnnotation = (
 
   switch (annotation.type) {
     case "freehand":
-      // Temporarily disabled
+      drawSmoothFreehand(ctx, annotation.points, scale, annotation.style);
       break;
     case "line":
       drawLine(ctx, annotation.points, scale);
@@ -478,6 +570,24 @@ export const drawAnnotation = (
       break;
     case "highlight":
       drawHighlight(ctx, annotation.points, annotation.style, scale);
+      break;
+    case "door":
+      drawDoor(ctx, annotation.points, scale);
+      break;
+    case "window":
+      drawWindow(ctx, annotation.points, scale);
+      break;
+    case "fireExit":
+      drawFireExit(ctx, annotation.points, scale);
+      break;
+    case "stairs":
+      drawStairs(ctx, annotation.points, scale);
+      break;
+    case "elevator":
+      drawElevator(ctx, annotation.points, scale);
+      break;
+    case "toilet":
+      drawToilet(ctx, annotation.points, scale);
       break;
     default:
       console.warn("Unsupported annotation type:", annotation.type);
@@ -732,4 +842,214 @@ export const getRectangleDimensions = (start: Point, end: Point) => {
   const top = Math.min(start.y, end.y);
 
   return { width, height, left, top };
+};
+
+// Add drawing functions for architectural symbols
+export const drawDoor = (
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  scale: number
+) => {
+  if (!points || points.length < 2) return;
+  const [start, end] = points;
+
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+  const size = Math.min(width, height);
+
+  ctx.save();
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 2 * scale;
+
+  // Draw door frame
+  ctx.strokeRect(start.x * scale, start.y * scale, size, size);
+
+  // Draw door arc
+  ctx.beginPath();
+  ctx.arc(
+    start.x * scale + size,
+    start.y * scale + size / 2,
+    size / 2,
+    Math.PI * 1.5,
+    Math.PI * 0.5
+  );
+  ctx.stroke();
+
+  ctx.restore();
+};
+
+export const drawWindow = (
+  ctx: CanvasRenderingContext22D,
+  points: Point[],
+  scale: number
+) => {
+  if (!points || points.length < 2) return;
+  const [start, end] = points;
+
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+
+  ctx.save();
+  ctx.strokeStyle = "#0000FF";
+  ctx.lineWidth = 2 * scale;
+
+  // Draw window frame
+  ctx.strokeRect(start.x * scale, start.y * scale, width, height);
+
+  // Draw window panes
+  ctx.beginPath();
+  ctx.moveTo(start.x * scale + width / 2, start.y * scale);
+  ctx.lineTo(start.x * scale + width / 2, start.y * scale + height);
+  ctx.moveTo(start.x * scale, start.y * scale + height / 2);
+  ctx.lineTo(start.x * scale + width, start.y * scale + height / 2);
+  ctx.stroke();
+
+  ctx.restore();
+};
+
+export const drawFireExit = (
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  scale: number
+) => {
+  if (!points || points.length < 2) return;
+  const [start, end] = points;
+
+  // Calculate bounding box dimensions
+  const minX = Math.min(start.x, end.x);
+  const maxX = Math.max(start.x, end.x);
+  const minY = Math.min(start.y, end.y);
+  const maxY = Math.max(start.y, end.y);
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  ctx.save();
+  ctx.strokeStyle = "#FF0000";
+  ctx.lineWidth = 2 * scale;
+  ctx.fillStyle = "rgba(255, 0, 0, 0.3)"; // Add subtle fill for better visibility
+
+  // Main flame body
+  ctx.beginPath();
+  ctx.moveTo(centerX * scale, maxY * scale); // Bottom center
+
+  // Left curve with two peaks
+  ctx.bezierCurveTo(
+    (centerX - width * 0.3) * scale,
+    (maxY - height * 0.2) * scale,
+    (centerX - width * 0.4) * scale,
+    (minY + height * 0.3) * scale,
+    (centerX - width * 0.1) * scale,
+    minY * scale
+  );
+
+  // Right curve with two peaks
+  ctx.bezierCurveTo(
+    (centerX + width * 0.1) * scale,
+    (minY + height * 0.5) * scale,
+    (centerX + width * 0.4) * scale,
+    (maxY - height * 0.3) * scale,
+    centerX * scale,
+    maxY * scale
+  );
+
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Inner flame details
+  ctx.beginPath();
+  ctx.moveTo((centerX - width * 0.15) * scale, (maxY - height * 0.2) * scale);
+  ctx.quadraticCurveTo(
+    centerX * scale,
+    (minY + height * 0.4) * scale,
+    (centerX + width * 0.15) * scale,
+    (maxY - height * 0.2) * scale
+  );
+  ctx.stroke();
+
+  ctx.restore();
+};
+
+export const drawStairs = (
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  scale: number
+) => {
+  if (!points || points.length < 2) return;
+  const [start, end] = points;
+
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+
+  ctx.save();
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 2 * scale;
+
+  // Draw stairs
+  for (let i = 0; i < 5; i++) {
+    const y = start.y * scale + (i * height) / 5;
+    ctx.beginPath();
+    ctx.moveTo(start.x * scale, y);
+    ctx.lineTo(start.x * scale + width, y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+};
+
+export const drawElevator = (
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  scale: number
+) => {
+  if (!points || points.length < 2) return;
+  const [start, end] = points;
+
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+
+  ctx.save();
+  ctx.strokeStyle = "#0000FF"; // Blue for elevator
+  ctx.lineWidth = 2 * scale;
+
+  // Draw elevator symbol
+  ctx.strokeRect(start.x * scale, start.y * scale, width, height);
+  ctx.beginPath();
+  ctx.moveTo(start.x * scale + width / 2, start.y * scale);
+  ctx.lineTo(start.x * scale + width / 2, start.y * scale + height);
+  ctx.stroke();
+
+  ctx.restore();
+};
+
+export const drawToilet = (
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  scale: number
+) => {
+  if (!points || points.length < 2) return;
+  const [start, end] = points;
+
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+
+  ctx.save();
+  ctx.strokeStyle = "#00FF00"; // Green for toilet
+  ctx.lineWidth = 2 * scale;
+
+  // Draw toilet symbol
+  ctx.beginPath();
+  ctx.arc(
+    start.x * scale + width / 2,
+    start.y * scale + height / 2,
+    Math.min(width, height) / 2,
+    0,
+    2 * Math.PI
+  );
+  ctx.stroke();
+
+  ctx.restore();
 };

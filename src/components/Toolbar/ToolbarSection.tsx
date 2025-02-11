@@ -12,7 +12,9 @@ export const ToolbarSection: React.FC<ToolbarSectionProps> = ({
   children,
   defaultExpanded = false,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, setIsExpanded] = useState(
+    title === "Architectural Symbols" ? true : defaultExpanded
+  );
 
   return (
     <div className="border-b border-gray-200 last:border-b-0">

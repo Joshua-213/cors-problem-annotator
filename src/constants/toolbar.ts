@@ -1,3 +1,12 @@
+import {
+  DoorOpen,
+  Square,
+  Flame,
+  ArrowUpDown,
+  StepForward,
+  ShowerHead,
+} from "lucide-react";
+
 export const COLORS = [
   "#FF0000", // Red
   "#FF8800", // Orange
@@ -15,7 +24,7 @@ export const OPACITY_LEVELS = [0.25, 0.5, 0.75, 1];
 // Define keyboard shortcuts first
 export const KEYBOARD_SHORTCUTS = {
   tools: {
-    select: "V",
+    select: "S",
     freehand: "P",
     rectangle: "R",
     circle: "C",
@@ -100,5 +109,43 @@ export const TOOLS = {
       shortcut: KEYBOARD_SHORTCUTS.tools.text,
     },
     { tool: "stickyNote", icon: "StickyNote", label: "Sticky Note" },
+  ],
+  architectural: [
+    {
+      tool: "door",
+      icon: DoorOpen,
+      label: "Door",
+      rightIcon: DoorOpen,
+    },
+    {
+      tool: "window",
+      icon: Square,
+      label: "Window",
+      rightIcon: Square,
+    },
+    {
+      tool: "fireExit",
+      icon: Flame,
+      label: "Fire Exit",
+      rightIcon: Flame,
+    },
+    {
+      tool: "stairs",
+      icon: StepForward,
+      label: "Stairs",
+      rightIcon: StepForward,
+    },
+    {
+      tool: "elevator",
+      icon: ArrowUpDown,
+      label: "Elevator",
+      rightIcon: ArrowUpDown,
+    },
+    {
+      tool: "toilet",
+      icon: ShowerHead,
+      label: "Toilet",
+      rightIcon: ShowerHead,
+    },
   ],
 } as const;

@@ -16,7 +16,13 @@ export type AnnotationType =
   | "text"
   | "stickyNote"
   | "highlight"
-  | "stamp";
+  | "stamp"
+  | "door"
+  | "window"
+  | "fireExit"
+  | "stairs"
+  | "elevator"
+  | "toilet";
 
 export type StampType = "approved" | "rejected" | "draft" | "reviewed";
 
@@ -48,17 +54,27 @@ export interface ToolConfig {
   drawMode: "continuous" | "shape" | "single";
 }
 
-export const createAnnotation = (): Annotation => ({
-  id: Date.now().toString(),
-  type: "freehand",
-  points: [],
-  style: {
-    color: "#000000",
-    lineWidth: 2,
-    opacity: 1
-  },
-  pageNumber: 1,
-  timestamp: Date.now(),
-  userId: "current-user",
-  version: 1
-});
+export const createAnnotation = (type: AnnotationType): Annotation => {
+  const defaultStyles: Record<AnnotationType, AnnotationStyle> = {
+    fireExit: { color: "#FF0000", lineWidth: 2, opacity: 1 },
+    stairs: { color: "#000000", lineWidth: 2, opacity: 1 },
+    elevator: { color: "#0000FF", lineWidth: 2, opacity: 1 },
+    toilet: { color: "#00FF00", lineWidth: 2, opacity: 1 },
+    // ... other default styles ...
+  };
+
+  return {
+    id: Date.now().toString(),
+    type,
+    points: [],
+    style: defaultStyles[type] || {
+      color: "#000000",
+      lineWidth: 2,
+      opacity: 1,
+    },
+    pageNumber: 1,
+    timestamp: Date.now(),
+    userId: "current-user",
+    version: 1,
+  };
+};

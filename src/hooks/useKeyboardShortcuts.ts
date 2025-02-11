@@ -31,6 +31,8 @@ export const useKeyboardShortcuts = (
     pasteAnnotations,
     bringToFront,
     sendToBack,
+    clipboardAnnotations,
+    store,
   } = useAnnotationStore();
   const { showToast } = useToast();
 
@@ -51,20 +53,45 @@ export const useKeyboardShortcuts = (
         action: () => redo(documentId),
         ctrl: true,
       },
-      v: [
-        {
-          action: () => setCurrentTool("select"),
+      v: {
+        action: () => {
+          if (clipboardAnnotations.length === 0) {
+            showToast("No annotations to paste");
+            return;
+          }
+
+          const newAnnotations = clipboardAnnotations.map((annotation) => ({
+            ...annotation,
+            id: Date.now() + Math.random().toString(),
+            pageNumber: currentPage,
+            timestamp: Date.now(),
+            points: annotation.points.map((p) => ({
+              x: p.x + 20,
+              y: p.y + 20,
+            })),
+          }));
+
+          const document = documents[documentId];
+          if (document) {
+            const updatedAnnotations = [
+              ...document.annotations,
+              ...newAnnotations,
+            ];
+
+            store.updateDocumentAnnotations(documentId, updatedAnnotations);
+
+            showToast(
+              `${newAnnotations.length} annotation${
+                newAnnotations.length > 1 ? "s" : ""
+              } pasted`
+            );
+          }
         },
-        {
-          action: () => {
-            const count = pasteAnnotations(currentPage);
-            if (count) {
-              showToast(`${count} annotation${count > 1 ? "s" : ""} pasted`);
-            }
-          },
-          ctrl: true,
-        },
-      ],
+        ctrl: true,
+      },
+      s: {
+        action: () => setCurrentTool("select"),
+      },
       p: {
         action: () => setCurrentTool("freehand"),
       },
@@ -72,9 +99,6 @@ export const useKeyboardShortcuts = (
         action: () => setCurrentTool("rectangle"),
       },
       c: [
-        {
-          action: () => setCurrentTool("circle"),
-        },
         {
           action: () => {
             const count = copySelectedAnnotations();
@@ -84,23 +108,27 @@ export const useKeyboardShortcuts = (
           },
           ctrl: true,
         },
+        {
+          action: () => setCurrentTool("circle"),
+        },
       ],
       l: {
         action: () => setCurrentTool("line"),
       },
       a: [
         {
-          action: () => setCurrentTool("arrow"),
-        },
-        {
           action: () => {
-            // Select all annotations on current page
             const document = documents[documentId];
             if (document) {
-              selectAnnotations(document.annotations);
+              selectAnnotations(
+                document.annotations.filter((a) => a.pageNumber === currentPage)
+              );
             }
           },
           ctrl: true,
+        },
+        {
+          action: () => setCurrentTool("arrow"),
         },
       ],
       t: {
@@ -169,7 +197,6 @@ export const useKeyboardShortcuts = (
       if (!shortcut) return;
 
       if (Array.isArray(shortcut)) {
-        // Handle multiple shortcuts for same key
         const matchingShortcut = shortcut.find((s) => {
           const ctrlMatch = !s.ctrl || (s.ctrl && (e.ctrlKey || e.metaKey));
           const shiftMatch = !s.shift || (s.shift && e.shiftKey);
@@ -211,5 +238,7 @@ export const useKeyboardShortcuts = (
     showToast,
     bringToFront,
     sendToBack,
+    clipboardAnnotations,
+    store,
   ]);
 };
